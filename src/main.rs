@@ -23,6 +23,7 @@ fn escapes(c: Complex<f64>, limit: u32) -> Option<u32> {
     None
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ParsePairError<T> {
     ParseElementError(T),
     NoDelimiter
@@ -63,10 +64,10 @@ struct Point {
 
 
 impl FromStr for Point {
-    type Err = ParsePairError<f64>;
+    type Err = ParsePairError<ParseFloatError>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (x, y) = parse_pair::<i64>(s, ',')?;
+        let (x, y) = parse_pair::<f64>(s, ',')?;
         Ok(Point { x: x, y: y })
     }
 }
@@ -142,18 +143,20 @@ fn main() {
         println!("Parallel using {} threads.", threads);
         let band_rows = bounds.1 / threads + 1;
         let bands: Vec<&mut [u8]> = pixels.chunks_mut(band_rows * bounds.0).collect();
-        crossbeam::scope(|scope| for (i, band) in bands.into_iter().enumerate() {
-            let top = band_rows * i;
-            let height = band.len() / bounds.0;
-            let band_bounds = (bounds.0, height);
-            let band_upper_left = pixel_to_point(bounds, (0, top), &upper_left, &lower_right);
-            let band_lower_right = pixel_to_point(bounds, (bounds.0, top + height), &upper_left, &lower_right);
+        crossbeam::scope(|scope| {
+            for (i, band) in bands.into_iter().enumerate() {
+                let top = band_rows * i;
+                let height = band.len() / bounds.0;
+                let band_bounds = (bounds.0, height);
+                let band_upper_left = pixel_to_point(bounds, (0, top), &upper_left, &lower_right);
+                let band_lower_right = pixel_to_point(bounds, (bounds.0, top + height), &upper_left, &lower_right);
 
-            scope.spawn(move || {
-                println!(">>> Thread #{}, {} pixels", i, band.len());
-                render(band, band_bounds, &band_upper_left, &band_lower_right);
-                println!("<<< Thread #{}", i)
-            });
+                scope.spawn(move || {
+                    println!(">>> Thread #{}, {} pixels", i, band.len());
+                    render(band, band_bounds, &band_upper_left, &band_lower_right);
+                    println!("<<< Thread #{}", i)
+                });
+            }
         });
     } else {
         println!("Sequential.");
